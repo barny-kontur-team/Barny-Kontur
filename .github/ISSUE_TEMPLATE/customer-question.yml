@@ -1,0 +1,29 @@
+name: Вопрос заказчику
+description: Вопрос к Вере Вейн (Контур). Капитан собирает их и отправляет одним списком
+title: "[Вопрос] "
+labels: ["тип: вопрос заказчику"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Вопрос
+      description: Сформулируйте так, чтобы на него можно было ответить без пояснений
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Зачем нам ответ
+      description: Что мы не сможем сделать без ответа
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Приоритет
+      options: [Высокий, Средний, Низкий]
+  - type: textarea
+    id: answer
+    attributes:
+      label: Ответ заказчика
+      description: Заполняется после ответа
