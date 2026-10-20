@@ -1,0 +1,25 @@
+# Окружение и секреты
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+build/
+
+# IDE и система
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Временные файлы Excel
+~$*.xlsx
