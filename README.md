@@ -42,7 +42,31 @@
 
 ## Как запустить
 
-Появится, когда будет выбран стек.
+Стек выбран (ADR-0001): FastAPI + PostgreSQL, запуск через Docker Compose.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Поднимаются база и сервер. Проверка: http://localhost:8000/health —
+`{"status":"ok","db":"ok"}`. Документация API: http://localhost:8000/docs.
+
+Запуск без Docker (для разработки):
+
+```bash
+cd backend
+python -m pip install -r requirements-dev.txt
+python -m uvicorn main:app --reload   # база по умолчанию — локальный sqlite
+```
+
+Тесты: `cd backend && python -m pytest tests/`
+
+Скрипты проверок гипотез: см. `scripts/h02/README.md`.
+
+Что уже работает, а что заглушки: поднимаются сервер, база и схема из 9 таблиц
+(`backend/models.py`); модули `importer`, `dynamics`, `calls`, `ai` отвечают 501 —
+рабочие функции в спринте 3. Интерфейс добавит Артём (`frontend/`).
 
 ## Как работаем с репозиторием
 

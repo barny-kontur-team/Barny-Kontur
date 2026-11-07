@@ -1,0 +1,31 @@
+# Запуск одной командой: docker compose up --build
+# Проверка: http://localhost:8000/health
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kcr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kcr}
+      POSTGRES_DB: ${POSTGRES_DB:-kcr}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kcr} -d ${POSTGRES_DB:-kcr}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-kcr}:${POSTGRES_PASSWORD:-kcr}@db:5432/${POSTGRES_DB:-kcr}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # frontend (Артём): добавить сервис интерфейса здесь, порт 5173 или 80
+
+volumes:
+  pgdata:
