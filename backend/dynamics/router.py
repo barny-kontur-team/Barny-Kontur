@@ -1,15 +1,19 @@
-"""Динамика: три признака по клиенту — изменение между срезами, «новичок»,
-«хронический» (модель Б, Р-02, H-02).
-
-Заглушка скелета: расчёт в сервисе — спринт 3. Правила уже реализованы и
-проверены в scripts/h02/features.py — оттуда их перенесёт dynamics/.
-"""
-from fastapi import APIRouter, HTTPException
-
+"""H-02: historical model B dynamics for a client."""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from db import SessionLocal
+from models import Client, DocumentSnapshot
+from .service import present
 router = APIRouter(tags=["dynamics"])
 
+def get_db():
+    with SessionLocal() as db:
+        yield db
 
 @router.get("/clients/{client_id}/dynamics")
-def client_dynamics(client_id: int) -> None:
-    """Признаки клиента по срезам (история, не перезаписывается)."""
-    raise HTTPException(status_code=501, detail="модуль динамики в разработке (спринт 3)")
+def client_dynamics(client_id: int, db: Session = Depends(get_db)) -> dict:
+    client = db.get(Client, client_id)
+    if client is None: raise HTTPException(status_code=404, detail="Клиент не найден")
+    rows = db.scalars(select(DocumentSnapshot).where(DocumentSnapshot.client_id == client_id).order_by(DocumentSnapshot.snapshot_date, DocumentSnapshot.id)).all()
+    return {"client_id": client.id, "kcr_code":client.kcr_code,"first_appearance_date":client.first_appearance_date.isoformat() if client.first_appearance_date else None,"history": [present(s) for s in rows]}

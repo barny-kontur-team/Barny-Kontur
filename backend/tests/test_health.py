@@ -4,8 +4,6 @@ from fastapi.testclient import TestClient
 from main import app
 
 STUB_POST_ENDPOINTS = (
-    "/api/imports/clients",
-    "/api/imports/snapshots",
     "/api/clients/1/take",
     "/api/clients/1/calls",
     "/api/clients/1/summary",
