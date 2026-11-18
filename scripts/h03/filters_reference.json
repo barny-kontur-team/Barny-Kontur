@@ -1,0 +1,15 @@
+{
+  "_comment": "Эталонные условия для 12 запросов блока Б (колонка «Правильный фильтр» протокола). Нужны для самопроверки кода без модели: код должен отобрать ровно эталонные коды.",
+  "Б-01": {"share_last_gt": 25},
+  "Б-02": {"in_pool_last": true},
+  "Б-03": {"novice_with_missing_ever": true},
+  "Б-04": {"chronic_last": true, "last_call_before": "2026-10-01"},
+  "Б-05": {"stage": "Претензия"},
+  "Б-06": {"connected_on_or_after": "2026-01-01", "had_missing_ever": true},
+  "Б-07": {"had_missing_ever": true, "missing_zero_last": true, "no_recurrence_ever": true},
+  "Б-08": {"total_zero_last": true},
+  "Б-09": {"do_not_call": true},
+  "Б-10": {"last_two_changes_equal": "Не меняется или растёт"},
+  "Б-11": {"last_two_changes_equal": "Уменьшается"},
+  "Б-12": {"novice_last": true, "last_call_before": "2026-10-01", "share_last_gt": 25}
+}
