@@ -38,7 +38,7 @@ class Client(Base):
         UniqueConstraint("kcr_code", name="uq_client_kcr_code"),
     )
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     kcr_code: Mapped[str] = mapped_column(String(64), nullable=False)
     inn: Mapped[str] = mapped_column(String(12), nullable=False)  # CL-02: не уникален
     kpp: Mapped[str | None] = mapped_column(String(9))
@@ -75,7 +75,7 @@ class DocumentSnapshot(Base):
                          name="uq_snapshot_client_period_date"),
     )
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client.id"), nullable=False)
     import_batch_id: Mapped[int] = mapped_column(ForeignKey("import_batch.id"), nullable=False)
     reporting_period: Mapped[str] = mapped_column(String(20), nullable=False)  # напр. 2026-Q3
@@ -101,7 +101,7 @@ class AppUser(Base):
 
     __tablename__ = "app_user"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     login: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)  # SEC-01
@@ -123,7 +123,7 @@ class WorkCycle(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client.id"), nullable=False)
     operator_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id"))
     stage: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -137,7 +137,7 @@ class Communication(Base):
 
     __tablename__ = "communication"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client.id"), nullable=False)
     cycle_id: Mapped[int | None] = mapped_column(ForeignKey("work_cycle.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id"), nullable=False)
@@ -153,7 +153,7 @@ class Task(Base):
 
     __tablename__ = "task"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client.id"), nullable=False)
     cycle_id: Mapped[int | None] = mapped_column(ForeignKey("work_cycle.id"))
     assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id"))
@@ -167,7 +167,7 @@ class Claim(Base):
 
     __tablename__ = "claim"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client.id"), nullable=False)
     cycle_id: Mapped[int | None] = mapped_column(ForeignKey("work_cycle.id"))
     claim_number: Mapped[str | None] = mapped_column(String(80))
@@ -183,7 +183,7 @@ class Sanction(Base):
 
     __tablename__ = "sanction"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     claim_id: Mapped[int] = mapped_column(ForeignKey("claim.id"), nullable=False)
     sanction_type: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -197,7 +197,7 @@ class ImportBatch(Base):
 
     __tablename__ = "import_batch"
 
-    id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
+    id: Mapped[int] = mapped_column(BIGINT().with_variant(Integer, "sqlite"), primary_key=True)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     import_type: Mapped[str] = mapped_column(String(30), nullable=False)  # CLIENTS | SNAPSHOTS
     imported_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
