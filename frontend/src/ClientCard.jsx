@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button, Field, Metric, Panel, Select } from './ui';
-import { canCall, dateStatus, dateText, operators, recommendation, stages, today } from './demo';
+import { canCall, dateStatus, dateText, recommendation, stages, today } from './demo';
 
 function CallForm({ client, close, onSave }) {
   const [form, setForm] = useState({ result: 'Дозвонились', comment: '', agreement: '', due: '', next: '', stage: client.stage, backdated: false, date: '' });
@@ -57,9 +57,9 @@ function ClaimForm({ client, close, save }) {
   </Panel>;
 }
 
-export default function ClientCard({ client, user, save, assign, take, claim }) {
+export default function ClientCard({ client, user, save, assign, take, claim, operators = [] }) {
   const [panel, setPanel] = useState('');
-  const [owner, setOwner] = useState(client.owner || operators[0]);
+  const [owner, setOwner] = useState(client.owner || operators[0] || '');
   const close = () => setPanel('');
   const snapshot = client.snapshots[0];
   const last = client.calls[0];
@@ -92,7 +92,7 @@ export default function ClientCard({ client, user, save, assign, take, claim }) 
         <section className="card"><h2>Действия</h2><div className="row wrap">
           <Button primary disabled={!mayRecord} onClick={() => setPanel('call')}>Зафиксировать звонок</Button>
           {!admin && !client.owner && canCall(client) && <Button onClick={() => setPanel('take')}>Взять в работу</Button>}
-          {admin && <><Button onClick={() => { setOwner(client.owner || operators[0]); setPanel('owner'); }}>{client.owner ? 'Переназначить' : 'Назначить'}</Button><Button onClick={() => setPanel('claim')}>Добавить претензию</Button></>}
+          {admin && <><Button onClick={() => { setOwner(client.owner || operators[0] || ''); setPanel('owner'); }}>{client.owner ? 'Переназначить' : 'Назначить'}</Button><Button onClick={() => setPanel('claim')}>Добавить претензию</Button></>}
         </div>{!admin && client.owner && client.owner !== user.name && <p>Ответственный — {client.owner}. Переназначение доступно администратору.</p>}
           {!canCall(client, 0) && <p>{recommendation(client)}</p>}</section>
         <section className="card"><h2>Претензии и санкции</h2>{client.claims.length ? client.claims.map((item, index) => <div className="inset" key={index}><strong>{item.number} · {dateText(item.date)}</strong><p>{item.status}. {item.sanction || 'Санкции не применены.'}</p></div>) : <p>Активных претензий нет. Санкции не применены.</p>}</section>

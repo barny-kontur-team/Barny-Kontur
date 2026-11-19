@@ -3,9 +3,8 @@ from fastapi.testclient import TestClient
 
 from main import app
 
+# Остались только заглушки ИИ: calls реализован, импорт и динамика тоже.
 STUB_POST_ENDPOINTS = (
-    "/api/clients/1/take",
-    "/api/clients/1/calls",
     "/api/clients/1/summary",
     "/api/clients/search",
 )
