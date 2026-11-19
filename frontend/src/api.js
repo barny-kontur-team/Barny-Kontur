@@ -13,8 +13,9 @@ async function request(path, options = {}) {
   }
   if (!response.ok) {
     const detail = body && body.detail;
-    const message = typeof detail === 'string' ? detail : 'Запрос не выполнен';
-    throw new Error(message);
+    const message = typeof detail === 'string' ? detail :
+      Array.isArray(detail) ? detail.map((entry) => entry.msg).join('; ') : 'Запрос не выполнен';
+    throw Object.assign(new Error(message), { status: response.status });
   }
   return body;
 }
@@ -35,6 +36,11 @@ export const api = {
   take: (clientId, operatorId, takeover = false) =>
     send('POST', `/clients/${clientId}/take`, { operator_id: operatorId, takeover }),
   addCall: (clientId, payload) => send('POST', `/clients/${clientId}/calls`, payload),
+  importClients: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/imports/clients', { method: 'POST', body: form });
+  },
   importSnapshot: (file, date, period) => {
     const form = new FormData();
     form.append('file', file);
