@@ -15,8 +15,9 @@ import models  # noqa: F401 — регистрирует таблицы в Base.
 from calls import service
 from calls.router import get_db
 from db import Base
+from dynamics.router import get_db as dynamics_db
 from main import app
-from models import AppUser, Client, WorkCycle
+from models import AppUser, Client, DocumentSnapshot, WorkCycle
 
 
 @pytest.fixture()
@@ -158,6 +159,7 @@ def http(db):
         yield db
 
     app.dependency_overrides[get_db] = override
+    app.dependency_overrides[dynamics_db] = override
     try:
         with TestClient(app) as client:
             yield client
@@ -214,3 +216,58 @@ def test_http_call_without_take_returns_409(http, seed):
         "operator_id": seed["op1"], "promised_date": "2026-06-01",
     })
     assert response.status_code == 409
+
+
+def test_http_work_and_users(http, seed):
+    url = f"/api/clients/{seed['client']}"
+    assert http.post(f"{url}/take", json={"operator_id": seed["op1"]}).status_code == 200
+    assert http.post(f"{url}/calls", json={
+        "operator_id": seed["op1"], "promised_date": "2026-06-01", "result": "Дозвонились",
+    }).status_code == 201
+
+    work = http.get("/api/work").json()["work"]
+    assert len(work) == 1
+    assert work[0]["client_id"] == seed["client"]
+    assert work[0]["operator_name"] == "Оператор Один"
+    assert work[0]["last_call"]["promised_date"] == "2026-06-01"
+
+    users = http.get("/api/users").json()["users"]
+    assert {"op1", "op2"} <= {user["login"] for user in users}
+
+
+def test_call_can_close_cycle(http, seed):
+    url = f"/api/clients/{seed['client']}"
+    assert http.post(f"{url}/take", json={"operator_id": seed["op1"]}).status_code == 200
+    response = http.post(f"{url}/calls", json={
+        "operator_id": seed["op1"],
+        "promised_date": "2026-06-01",
+        "stage": "Работа завершена",
+    })
+    assert response.status_code == 201
+    assert http.get(f"{url}/work").json()["cycle_id"] is None
+
+
+def test_clients_list_returns_db_id_and_reference_total(http, seed, db):
+    db.add_all([
+        DocumentSnapshot(
+            client_id=seed["client"], import_batch_id=1, reporting_period="I кв. 2026",
+            snapshot_date=date(2026, 4, 20), total_documents=20, missing_documents=5,
+            missing_percent=25.0, dynamics_code="NO_COMPARISON",
+        ),
+        DocumentSnapshot(
+            client_id=seed["client"], import_batch_id=1, reporting_period="I кв. 2026",
+            snapshot_date=date(2026, 5, 18), total_documents=None, missing_documents=3,
+            missing_percent=15.0, dynamics_code="DECREASING",
+        ),
+    ])
+    db.commit()
+
+    response = http.get("/api/clients")
+    assert response.status_code == 200
+    client = response.json()["clients"][0]
+    assert client["id"] == seed["client"]
+    assert client["kcr_code"] == "1000001"
+    assert client["last"]["total"] == 20  # опорный total восстановлен из процента
+    assert client["last"]["missing"] == 3
+    assert client["last"]["in_pool"] is True
+    assert client["previous"]["in_pool"] is True

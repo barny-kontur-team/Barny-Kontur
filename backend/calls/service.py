@@ -21,6 +21,15 @@ from models import AppUser, Client, Communication, WorkCycle
 
 STAGE_FIRST_CALL = "Первый звонок"
 STAGE_DETECTED = "Выявлены непереданные документы"
+STAGE_CLOSED = "Работа завершена"
+STAGES = (
+    STAGE_DETECTED,
+    STAGE_FIRST_CALL,
+    "Ожидание срока",
+    "Повторная проверка",
+    "Претензия",
+    STAGE_CLOSED,
+)
 
 CONTACT_CALL = "звонок"
 CONTACT_TYPES = ("звонок", "письмо", "комментарий")
@@ -137,7 +146,8 @@ def take_client(db: Session, client_id: int, operator_id: int,
 def add_call(db: Session, client_id: int, operator_id: int, promised_date: date, *,
              result: str | None = None, comment: str | None = None,
              contact_type: str = CONTACT_CALL,
-             called_at: datetime | None = None) -> Communication:
+             called_at: datetime | None = None,
+             stage: str | None = None) -> Communication:
     """Записать звонок. Срок клиента обязателен."""
     _get_client(db, client_id)
     _get_operator(db, operator_id)
@@ -149,6 +159,8 @@ def add_call(db: Session, client_id: int, operator_id: int, promised_date: date,
         raise NotOwner(cycle.operator_id, operator_name(db, cycle.operator_id))
     if contact_type not in CONTACT_TYPES:
         raise CallsError(f"Неизвестный тип контакта: {contact_type}")
+    if stage is not None and stage not in STAGES:
+        raise CallsError(f"Неизвестный этап: {stage}")
 
     communication = Communication(
         client_id=client_id,
@@ -161,7 +173,13 @@ def add_call(db: Session, client_id: int, operator_id: int, promised_date: date,
         created_at=called_at or _now(),
     )
     db.add(communication)
-    if cycle.stage == STAGE_DETECTED:
+    if stage == STAGE_CLOSED:
+        cycle.stage = STAGE_CLOSED
+        cycle.closed_at = _now()
+        cycle.close_reason = STAGE_CLOSED
+    elif stage is not None:
+        cycle.stage = stage
+    elif cycle.stage == STAGE_DETECTED:
         cycle.stage = STAGE_FIRST_CALL
     db.commit()
     db.refresh(communication)
@@ -187,4 +205,43 @@ def get_work(db: Session, client_id: int) -> tuple[WorkCycle | None, str | None]
     if cycle is None:
         return None, None
     return cycle, operator_name(db, cycle.operator_id)
+
+
+def list_work(db: Session) -> list[dict]:
+    """Все активные циклы: ответственный, этап и последний звонок."""
+    cycles = db.scalars(
+        select(WorkCycle)
+        .where(WorkCycle.closed_at.is_(None))
+        .order_by(WorkCycle.id)
+    ).all()
+    result: list[dict] = []
+    for cycle in cycles:
+        last_call = db.scalar(
+            select(Communication)
+            .where(Communication.client_id == cycle.client_id)
+            .order_by(Communication.created_at.desc(), Communication.id.desc())
+            .limit(1)
+        )
+        result.append({
+            "client_id": cycle.client_id,
+            "cycle_id": cycle.id,
+            "operator_id": cycle.operator_id,
+            "operator_name": operator_name(db, cycle.operator_id),
+            "stage": cycle.stage,
+            "started_at": cycle.started_at,
+            "last_call": None if last_call is None else {
+                "date": last_call.created_at.date(),
+                "promised_date": last_call.promised_date,
+                "result": last_call.result,
+            },
+        })
+    return result
+
+
+def list_users(db: Session) -> list[AppUser]:
+    """Активные пользователи: до появления входа фронтенду нужен список."""
+    return list(db.scalars(
+        select(AppUser).where(AppUser.is_active.is_(True)).order_by(AppUser.id)
+    ))
+
 

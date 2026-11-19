@@ -17,6 +17,10 @@ from calls.schemas import (
     CallsOut,
     TakeOut,
     TakeRequest,
+    UserOut,
+    UsersOut,
+    WorkItemOut,
+    WorkListOut,
     WorkOut,
 )
 from db import SessionLocal
@@ -81,6 +85,7 @@ def add_call(client_id: int, payload: CallRequest,
             comment=payload.comment,
             contact_type=payload.contact_type,
             called_at=payload.called_at,
+            stage=payload.stage,
         )
     except service.CallsError as exc:
         _http_error(exc)
@@ -133,4 +138,19 @@ def get_work(client_id: int, db: Session = Depends(get_db)) -> WorkOut:
     except service.CallsError as exc:
         _http_error(exc)
     return _work_out(client_id, cycle, operator_name)
+
+
+@router.get("/work", response_model=WorkListOut)
+def list_work(db: Session = Depends(get_db)) -> WorkListOut:
+    """Все активные циклы: ответственный, этап, последний звонок."""
+    return WorkListOut(work=service.list_work(db))
+
+
+@router.get("/users", response_model=UsersOut)
+def list_users(db: Session = Depends(get_db)) -> UsersOut:
+    """Пользователи для входа и выбора ответственного (входа пока нет)."""
+    return UsersOut(users=[
+        UserOut(id=user.id, full_name=user.full_name, login=user.login, role=user.role)
+        for user in service.list_users(db)
+    ])
 

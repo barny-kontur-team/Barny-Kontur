@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button, Field, Metric, Panel, Select, Table } from './ui';
-import { canCall, clientTags, dateStatus, dateText, dynamics, operators, priorities, recommendation, stages, today } from './demo';
+import { canCall, clientTags, dateStatus, dateText, dynamics, priorities, recommendation, stages, today } from './demo';
 
 function ClientLink({ client, open }) {
   return <button type="button" className="text-button" onClick={(event) => { event.stopPropagation(); open(client.id); }}>{client.name}</button>;
@@ -80,13 +80,13 @@ export function TodayScreen({ clients, user, open, take }) {
   </div>;
 }
 
-export function Queue({ clients, open, assign }) {
+export function Queue({ clients, open, assign, operators = [] }) {
   const defaults = { threshold: '5', trend: '', tag: '', stage: '', term: '' };
   const [draft, setDraft] = useState(defaults);
   const [filters, setFilters] = useState(defaults);
   const [checked, setChecked] = useState([]);
   const [panel, setPanel] = useState(false);
-  const [owner, setOwner] = useState(operators[0]);
+  const [owner, setOwner] = useState(operators[0] || '');
   const [confirm, setConfirm] = useState(false);
   const visible = clients.filter((client) => canCall(client, Number(filters.threshold || 0))
     && matches(client, '', filters.trend, filters.tag) && (!filters.stage || filters.stage === client.stage)

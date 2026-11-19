@@ -22,6 +22,7 @@ class CallRequest(BaseModel):
     comment: str | None = None
     contact_type: str = "звонок"
     called_at: datetime | None = None
+    stage: str | None = None
 
 
 class WorkOut(BaseModel):
@@ -53,3 +54,28 @@ class CallOut(BaseModel):
 class CallsOut(BaseModel):
     client_id: int
     calls: list[CallOut]
+
+
+class LastCallOut(BaseModel):
+    date: date
+    promised_date: date | None = None
+    result: str | None = None
+
+
+class WorkItemOut(WorkOut):
+    last_call: LastCallOut | None = None
+
+
+class WorkListOut(BaseModel):
+    work: list[WorkItemOut]
+
+
+class UserOut(BaseModel):
+    id: int
+    full_name: str
+    login: str
+    role: str
+
+
+class UsersOut(BaseModel):
+    users: list[UserOut]

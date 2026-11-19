@@ -81,9 +81,9 @@ export default function ImportScreen({ data, onImport, openClients }) {
     setMessage('');
   }
 
-  function commit() {
+  async function commit() {
     try {
-      onImport(report, meta);
+      await onImport(report, meta, source?.file || null);
       setDone(true);
     } catch (error) {
       setMessage(error.message);
@@ -127,7 +127,9 @@ export default function ImportScreen({ data, onImport, openClients }) {
         <Metric label="Отклонено строк" value={fatal ? report.count : report.errors.length} />
       </div>
       {fatal && <p className="notice red">{report.duplicates ? 'Удалите дубликаты идентификаторов и загрузите исправленный файл. Данные не сохранены.' : 'Исправьте ошибки и загрузите файл повторно.'}</p>}
-      {done && <p>Прошлые срезы и история работы с клиентами сохранены.</p>}
+      {done && <p>{source?.file
+        ? 'Срез сохранён в базе. Прошлые срезы и история работы с клиентами не изменились.'
+        : 'Демонстрационный пример: изменения только на экране, в базу не записаны.'}</p>}
       {(showRows || fatal) && !done && <Table headers={['Строка', 'Идентификатор', 'Причина']} label="Ошибки импорта">
         {report.errors.map(({ row, id, reason }) => <tr key={row}><td>{row}</td><td>{id || '—'}</td><td>{reason}</td></tr>)}
       </Table>}
