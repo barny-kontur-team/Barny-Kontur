@@ -7,7 +7,7 @@
 | `GET /health` | — | `{"status":"ok","db":"ok"}` или `"down"` | — |
 | `POST /api/imports/clients` | multipart: `file` (`.xlsx`) | `{"created":2,"status":"OK"}` | `422` некорректный Excel; `409` код уже есть в БД |
 | `POST /api/imports/snapshots` | multipart: `file` (`.xlsx`), `reporting_period` (строка), `snapshot_date` (`YYYY-MM-DD`) | `{"created":2,"recalculated_clients":2,"status":"OK"}` | `422` ошибки файла/периода; `409` повтор даты среза |
-| `GET /api/clients` | — | `{"clients":[...]}`: ID БД, код КЦР, реквизиты, история, `last`, `previous` | — |
+| `GET /api/clients` | — | `{"clients":[...]}`: ID БД, код КЦР, реквизиты, история, `last`, `previous`, `last_closed_stage` (этап последнего закрытого цикла или `null`) | — |
 | `GET /api/clients/{client_id}/dynamics` | path: **числовой ID БД**, не `kcr_code` | `client_id`, `kcr_code`, `first_appearance_date`, `history` | `404` клиент не найден |
 | `GET /api/clients/{client_id}/calls` | path: ID | история коммуникаций, новые сверху | `404` клиент не найден |
 | `GET /api/clients/{client_id}/work` | path: ID | кто ведёт сейчас: `cycle_id`, `operator_id`, `operator_name`, `stage` | `404` клиент не найден |

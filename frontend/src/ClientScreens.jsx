@@ -52,10 +52,12 @@ export function TodayScreen({ clients, user, open, take }) {
   const filters = useFilters();
   const [tab, setTab] = useState('Сегодня');
   const [pending, setPending] = useState(null);
+  const weekEnd = new Date(Date.parse(today) + 7 * 86400000).toISOString().slice(0, 10);
+  const taskDate = (client) => client.next || client.due;
   const groups = {
-    'Просрочено': clients.filter((client) => client.next && client.next < today),
-    'Сегодня': clients.filter((client) => client.next === today || !client.next),
-    'Неделя': clients.filter((client) => client.next > today && client.next <= '2026-10-31'),
+    'Просрочено': clients.filter((client) => taskDate(client) && taskDate(client) < today),
+    'Сегодня': clients.filter((client) => taskDate(client) === today || !taskDate(client)),
+    'Неделя': clients.filter((client) => taskDate(client) > today && taskDate(client) <= weekEnd),
   };
   const shown = groups[tab].filter((client) => matches(client, filters.query, filters.trend, filters.tag));
   return <div className="stack">
@@ -66,11 +68,11 @@ export function TodayScreen({ clients, user, open, take }) {
     </div>
     <Table headers={['Срок', 'Клиент', 'Что сделать', 'Этап', 'Ответственный', 'Действие']} label="Сегодня нужно" empty={!shown.length}>
       {shown.map((client) => <tr key={client.id} onClick={() => open(client.id)} className="clickable">
-        <td className="nowrap">{client.next ? dateText(client.next) : '—'}</td>
+        <td className="nowrap">{dateText(taskDate(client))}{taskDate(client) && <div className="muted">{client.next ? 'Контакт · демо' : 'Обещанный срок'}</div>}</td>
         <td><ClientLink client={client} open={open} /><div className="muted">{client.id}</div></td>
         <td>{recommendation(client)}</td><td>{client.stage}</td><td>{client.owner || 'Не назначен'}</td>
-        <td>{client.owner === user.name ? <Badge tone="green">В работе у вас</Badge> : client.owner ? <span className="muted">В работе у коллеги</span> :
-          <Button primary disabled={!canCall(client)} onClick={(event) => { event.stopPropagation(); setPending(client); }}>Взять в работу</Button>}</td>
+        <td>{client.ownerId && client.ownerId === user.id ? <Badge tone="green">В работе у вас</Badge> : client.owner ? <span className="muted">В работе у коллеги</span> :
+          user.role === 'operator' && <Button primary disabled={!canCall(client)} onClick={(event) => { event.stopPropagation(); setPending(client); }}>Взять в работу</Button>}</td>
       </tr>)}
     </Table>
     {pending && <Panel modal title="Взять в работу" subtitle={pending.name} onClose={() => setPending(null)}>
@@ -144,7 +146,7 @@ export function Assistant({ clients, open }) {
   const [expanded, setExpanded] = useState(false);
   const ranked = priorities(clients);
   const matching = clients.find((client) => asked.includes(client.id) || asked.includes(client.inn) || asked.toLowerCase().includes(client.name.toLowerCase().split('«')[1]?.split('-')[0]));
-  const overdue = ranked.filter((client) => client.next && client.next < today);
+  const overdue = ranked.filter((client) => (client.next || client.due) && (client.next || client.due) < today);
   const asksForPriority = /приоритет|обзвон|первым/i.test(asked);
   function ask(value) { if (value.trim()) { setAsked(value.trim()); setQuery(''); } }
   const answer = matching ? recommendation(matching) : /просроч/i.test(asked) ? 'Клиентов с просроченным контактом в списке приоритетов: ' + overdue.length + '.' :
@@ -158,7 +160,7 @@ export function Assistant({ clients, open }) {
     </section>
     <aside className="stack">
       <section className="card stack"><h2>Приоритет на сегодня</h2>
-        {ranked.slice(0, expanded ? ranked.length : 4).map((client) => <div className="inset" key={client.id}><ClientLink client={client} open={open} /><div className="muted">{client.next && client.next < today ? 'Просроченный контакт · ' : ''}{recommendation(client)}</div></div>)}
+        {ranked.slice(0, expanded ? ranked.length : 4).map((client) => <div className="inset" key={client.id}><ClientLink client={client} open={open} /><div className="muted">{overdue.includes(client) ? 'Срок прошёл · ' : ''}{recommendation(client)}</div></div>)}
         {!ranked.length && <p>Подходящих клиентов нет.</p>}
         {ranked.length > 4 && <Button primary onClick={() => setExpanded(!expanded)}>{expanded ? 'Свернуть список' : 'Открыть список'}</Button>}
       </section>

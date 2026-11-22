@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db import SessionLocal
-from models import Client, DocumentSnapshot
+from models import Client, DocumentSnapshot, WorkCycle
 
 from .service import present
 
@@ -90,6 +90,12 @@ def list_clients(db: Session = Depends(get_db)) -> dict:
     for snapshot in rows:
         by_client.setdefault(snapshot.client_id, []).append(snapshot)
 
+    closed_stages = dict(reversed(db.execute(
+        select(WorkCycle.client_id, WorkCycle.stage)
+        .where(WorkCycle.closed_at.is_not(None))
+        .order_by(WorkCycle.closed_at.desc(), WorkCycle.id.desc())
+    ).all()))
+
     result = []
     for client in clients:
         history = _history(client, by_client.get(client.id, []))
@@ -102,6 +108,7 @@ def list_clients(db: Session = Depends(get_db)) -> dict:
             "client_type": client.client_type,
             "connected_at": _iso(client.connection_date),
             "do_not_call": bool(client.is_do_not_work),
+            "last_closed_stage": closed_stages.get(client.id),
             "first_appearance_date": _iso(client.first_appearance_date),
             "history": history,
             "last": history[-1] if history else None,

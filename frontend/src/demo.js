@@ -1,21 +1,12 @@
 // Справочники и правила показа. Данные клиентов теперь приходят из API,
 // здесь остались только общие списки и вычисления для интерфейса.
-export const today = '2026-11-01';
+export const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format();
 export const stages = ['Выявлены непереданные документы', 'Первый звонок', 'Ожидание срока', 'Повторная проверка', 'Претензия', 'Работа завершена'];
 // Категории приходят из API (модель Б), поэтому фильтр использует их названия.
-export const dynamics = ['Нет сравнения', 'Нет данных', 'Все переданы', 'Появился впервые', 'Уменьшается', 'Не меняется или растёт', 'Повторное появление', 'Хронический', 'Новичок'];
+export const dynamics = ['Нет сравнения', 'Нет данных', 'Все переданы', 'Появился впервые', 'Уменьшается', 'Не меняется или растёт', 'Повторное появление'];
 export const clientTags = ['Новичок', 'Хронический', 'Не работать', 'Претензия'];
 export const dateText = (date) => date ? date.slice(0, 10).split('-').reverse().join('.') : '—';
 export const dateStatus = (date) => !date ? '' : date < today ? 'Просрочен' : date === today ? 'Сегодня' : 'Не наступил';
-
-function trend(missing, total, history) {
-  if (!total) return 'Нет данных';
-  if (!missing) return 'Все переданы';
-  const previous = history.find((snapshot) => snapshot.total > 0);
-  if (!previous) return 'Появился впервые';
-  if (!previous.missing) return history.some((snapshot) => snapshot.missing > 0) ? 'Повторное появление' : 'Появился впервые';
-  return missing < previous.missing ? 'Уменьшается' : 'Не меняется или растёт';
-}
 
 export function canCall(client, threshold = 5) {
   const { missing, total } = client.snapshots[0];
@@ -36,7 +27,8 @@ export function recommendation(client) {
 }
 
 export const priorities = (clients) => clients.filter((client) => canCall(client)).sort((a, b) =>
-  Number(b.next !== '' && b.next < today) - Number(a.next !== '' && a.next < today)
+  Number(Boolean(b.next || b.due) && (b.next || b.due) < today) -
+  Number(Boolean(a.next || a.due) && (a.next || a.due) < today)
   || Number(b.tags.includes('Хронический')) - Number(a.tags.includes('Хронический'))
   || b.snapshots[0].missing - a.snapshots[0].missing);
 
@@ -74,22 +66,4 @@ export function inspectRows([header = [], ...rows], clients) {
   });
   if (!count) throw new Error('В файле нет строк для проверки.');
   return { count, accepted, errors, duplicates };
-}
-
-export function applyImport(data, report, meta) {
-  if (report.duplicates || !report.accepted.length) throw new Error('Нет строк, которые можно импортировать.');
-  if (data.batches.some((batch) => batch.digest === meta.digest || batch.date === meta.date)) {
-    throw new Error('Этот файл или срез на указанную дату уже загружен.');
-  }
-  const updates = new Map(report.accepted.map((row) => [row.id, row]));
-  return {
-    batches: [{ ...meta, accepted: report.accepted.length, errors: report.errors.length }, ...data.batches],
-    clients: data.clients.map((client) => {
-      const row = updates.get(client.id);
-      if (!row) return client;
-      const history = client.snapshots.filter((snapshot) => snapshot.date < meta.date);
-      const snapshot = { date: meta.date, missing: row.missing, total: row.total, trend: trend(row.missing, row.total, history) };
-      return { ...client, snapshots: [snapshot, ...client.snapshots].sort((a, b) => b.date.localeCompare(a.date)) };
-    }),
-  };
 }

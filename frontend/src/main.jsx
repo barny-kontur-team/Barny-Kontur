@@ -7,7 +7,7 @@ import { Assistant, ClientList, Queue, TodayScreen } from './ClientScreens';
 import ClientCard from './ClientCard';
 import ImportScreen from './ImportScreen';
 import { api } from './api';
-import { applyImport, dateText, stages, today } from './demo';
+import { dateText, stages, today } from './demo';
 
 const password = 'demo1234';
 const roleLabel = { ADMIN: 'Администратор', OPERATOR: 'Оператор' };
@@ -47,7 +47,7 @@ function toClient(item, work, previous) {
     date: snapshot.date,
     missing: snapshot.missing,
     total: snapshot.total ?? 0,
-    trend: snapshot.category,
+    trend: snapshot.category === 'Нет данных' ? snapshot.category : snapshot.dynamics_name || snapshot.category,
   }));
   const snapshots = history.length
     ? [...history].reverse()
@@ -66,18 +66,20 @@ function toClient(item, work, previous) {
     name: item.name,
     owner: work?.operator_name || '',
     ownerId: work?.operator_id || null,
-    stage: work?.stage || stages[0],
+    stage: work?.stage || item.last_closed_stage || stages[0],
     tags,
     due: lastCall?.promised_date || '',
-    next: lastCall?.promised_date || '',
-    queued: Boolean(last?.in_pool),
+    next: previous?.next || '',
+    queued: (Boolean(last?.in_pool) || Boolean(work?.operator_id)) && !item.do_not_call
+      && (work?.stage || item.last_closed_stage) !== stages[5],
     snapshots,
     calls: previous?.calls || [],
-    claims: previous?.claims || [],
+    claims: previous?.claims ?? (item.client_type === 'Демо H-08' && item.kcr_code === '1000005'
+      ? [{ number: 'П-014', date: '2026-09-25', status: 'Получена клиентом', sanction: '' }] : []),
   };
 }
 
-function Login({ onLogin, users, bootError }) {
+function Login({ onLogin, users, bootError, retry }) {
   const [login, setLogin] = useState('');
   const [secret, setSecret] = useState('');
   const [role, setRole] = useState('admin');
@@ -111,7 +113,7 @@ function Login({ onLogin, users, bootError }) {
     <section className="login-content">
       <form className="login-form" onSubmit={submit}>
         <h1>Вход в сервис</h1><p>Используйте рабочую почту.</p>
-        {bootError && <p className="notice red" role="alert">Сервис недоступен: {bootError}</p>}
+        {bootError && <div className="notice red" role="alert">Сервис недоступен: {bootError} <Button onClick={retry}>Повторить</Button></div>}
         <Field label="Почта"><input autoComplete="username" placeholder="Введите логин" value={login} onChange={(event) => { setLogin(event.target.value); setError(''); }} required /></Field>
         <Field label="Пароль" error={error}><input type="password" autoComplete="current-password" value={secret} onChange={(event) => { setSecret(event.target.value); setError(''); }} required /></Field>
         <Button type="submit" primary disabled={!users.length}>Войти</Button>
@@ -137,10 +139,13 @@ function App() {
   const [back, setBack] = useState('clients');
   const [notice, setNotice] = useState('');
   const [help, setHelp] = useState(false);
+  const [historyState, setHistoryState] = useState({});
 
-  useEffect(() => {
+  const loadUsers = useCallback(() => {
+    setBootError('');
     api.users().then((response) => setUsers(response.users)).catch((error) => setBootError(error.message));
   }, []);
+  useEffect(loadUsers, [loadUsers]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -173,18 +178,20 @@ function App() {
 
   const nav = (next) => { setPage(next); window.scrollTo(0, 0); };
 
-  const loadCallsFor = async (dbId, kcrCode) => {
+  const loadCallsFor = async (dbId) => {
     if (!dbId) return;
+    setHistoryState((previous) => ({ ...previous, [dbId]: { loading: true } }));
     try {
       const response = await api.calls(dbId);
       setData((previous) => ({
         ...previous,
-        clients: previous.clients.map((client) => client.id === kcrCode
+        clients: previous.clients.map((client) => client.dbId === dbId
           ? { ...client, calls: response.calls.map(toCall) }
           : client),
       }));
+      setHistoryState((previous) => ({ ...previous, [dbId]: {} }));
     } catch (error) {
-      setNotice(error.message);
+      setHistoryState((previous) => ({ ...previous, [dbId]: { error: error.message } }));
     }
   };
 
@@ -192,6 +199,7 @@ function App() {
     return <Login
       users={users}
       bootError={bootError}
+      retry={loadUsers}
       onLogin={(account) => { setUser(account); nav(account.role === 'admin' ? 'clients' : 'today'); }}
     />;
   }
@@ -206,18 +214,19 @@ function App() {
     setClientId(id);
     setBack(page);
     nav('client');
-    if (target) loadCallsFor(target.dbId, id);
+    if (target) loadCallsFor(target.dbId);
   };
 
   const take = async (id) => {
     const target = data.clients.find((item) => item.id === id);
-    if (!target) return;
+    if (!target || admin || !target.queued) return;
     try {
       await api.take(target.dbId, user.id);
       await refresh();
       setNotice('Клиент взят в работу');
     } catch (error) {
       setNotice(error.message);
+      if (error.status === 409) await refresh();
     }
   };
 
@@ -225,26 +234,27 @@ function App() {
     if (!admin) return;
     const operator = users.find((item) => item.full_name === ownerName && item.role === 'OPERATOR');
     if (!operator) { setNotice('Оператор не найден'); return; }
+    let saved = 0;
     try {
       for (const id of ids) {
         const target = data.clients.find((item) => item.id === id);
         if (!target) continue;
-        const takeover = Boolean(target.owner) && target.owner !== ownerName;
+        const takeover = Boolean(target.ownerId) && target.ownerId !== operator.id;
         if (takeover && !replace) continue;
         await api.take(target.dbId, operator.id, takeover);
+        saved++;
       }
-      await refresh();
-      setNotice(replace ? 'Ответственный изменён' : 'Клиенты назначены');
+      if (saved) setNotice(replace ? 'Ответственный изменён' : 'Клиенты назначены');
     } catch (error) {
-      setNotice(error.message);
+      setNotice(saved ? `Обновлено клиентов: ${saved}. ${error.message}` : error.message);
+    } finally {
+      await refresh();
     }
   };
 
   const saveCall = async (form) => {
-    if (!client) return;
+    if (!client || admin || client.ownerId !== user.id) return false;
     try {
-      // Если клиента ещё никто не взял, звонок автоматически закрепляет его за автором.
-      if (!client.owner) await api.take(client.dbId, user.id);
       await api.addCall(client.dbId, {
         operator_id: user.id,
         promised_date: form.due,
@@ -253,21 +263,29 @@ function App() {
         called_at: form.backdated && form.date ? `${form.date}T12:00:00` : null,
         stage: form.stage || null,
       });
+      setData((previous) => ({
+        ...previous, clients: previous.clients.map((item) => item.dbId === client.dbId
+          ? { ...item, next: form.next } : item),
+      }));
       await refresh();
-      await loadCallsFor(client.dbId, client.id);
+      await loadCallsFor(client.dbId);
       setNotice('Звонок сохранён');
+      return true;
     } catch (error) {
       setNotice(error.message);
+      if (error.status === 409) await refresh();
+      return false;
     }
   };
 
-  const handleImport = async (report, meta, file) => {
-    if (!file) {
-      setData((previous) => applyImport(previous, report, meta));
-      return;
-    }
-    await api.importSnapshot(file, meta.date, toApiPeriod(meta.period));
+  const handleImport = async (meta, file) => {
+    const result = meta.kind === 'clients' ? await api.importClients(file)
+      : await api.importSnapshot(file, meta.date, toApiPeriod(meta.period));
+    setData((previous) => ({ ...previous, batches: [
+      { ...meta, accepted: result.created }, ...previous.batches,
+    ] }));
     await refresh();
+    return result;
   };
 
   const title = page === 'client' ? client?.name || 'Карточка клиента' : menus.find(([id]) => id === page)?.[1];
@@ -288,23 +306,25 @@ function App() {
         <div><h1>{title}</h1><p>{subtitle}</p></div>
         {page === 'assistant' ? <Badge>Только для чтения · демо</Badge> : <Button onClick={() => setHelp(true)}>Помощь</Button>}
       </header>
-      {dataError && <p className="notice red" role="alert">Не удалось загрузить данные: {dataError}</p>}
+      {dataError && <div className="notice red" role="alert">Не удалось загрузить данные: {dataError} <Button onClick={refresh}>Повторить</Button></div>}
       {loading && <p className="muted">Обновляем данные…</p>}
       <div className="content" key={page}>
         {page === 'clients' && admin && <ClientList clients={data.clients} open={open} onQueue={() => nav('queue')} />}
         {page === 'queue' && admin && <Queue clients={data.clients} open={open} assign={assign} operators={operatorNames} />}
-        {page === 'imports' && admin && <ImportScreen data={data} openClients={() => nav('clients')} onImport={handleImport} />}
+        {page === 'imports' && admin && <ImportScreen batches={data.batches} openClients={() => nav('clients')} onImport={handleImport} />}
         {page === 'today' && <TodayScreen clients={pooled} user={user} open={open} take={take} />}
         {page === 'assistant' && admin && <Assistant clients={data.clients} open={open} />}
         {page === 'client' && client && <div className="stack">
           <div><Button onClick={() => nav(back)}>Назад к списку</Button></div>
           <ClientCard key={client.id} client={client} user={user} operators={operatorNames}
+            historyState={historyState[client.dbId]}
+            retryHistory={() => loadCallsFor(client.dbId)}
             take={() => take(client.id)} assign={(owner) => assign([client.id], owner, Boolean(client.owner))}
             save={saveCall}
             claim={(value) => {
               if (!admin) return;
-              setData((previous) => ({ ...previous, clients: previous.clients.map((item) => item.id !== client.id ? item : {
-                ...item, claims: [value, ...item.claims], tags: [...new Set([...item.tags, 'Претензия'])], stage: 'Претензия',
+              setData((previous) => ({ ...previous, clients: previous.clients.map((item) => item.dbId !== client.dbId ? item : {
+                ...item, claims: [value, ...item.claims],
               }) }));
               setNotice('Претензия сохранена (демо)');
             }} />
@@ -314,7 +334,7 @@ function App() {
     {notice && <div className="toast" role="status"><Badge tone="green">Готово</Badge><strong>{notice}</strong></div>}
     {help && <Panel title="Помощь" modal onClose={() => setHelp(false)}>
       <p>{admin ? 'Начните с загрузки Excel или откройте список клиентов, чтобы подготовить обзвон.' : 'Откройте «Сегодня нужно», выберите клиента и запишите результат контакта в карточке.'}</p>
-      <p>Клиенты, срезы и звонки сохраняются в базе. ИИ-помощник и претензии пока демонстрационные.</p>
+      <p>Клиенты, срезы и звонки сохраняются в базе. ИИ-помощник, претензии и дата следующего контакта работают в деморежиме.</p>
       <div className="actions"><Button primary onClick={() => setHelp(false)}>Понятно</Button></div>
     </Panel>}
   </div>;
